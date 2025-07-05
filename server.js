@@ -6,7 +6,7 @@ import path from 'path';
 import { JigsawStack } from 'jigsawstack';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-
+import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -17,7 +17,7 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public'))); // Serve static files
 
 const jigsaw = JigsawStack({ apiKey: process.env.JIGSAWSTACK_API_KEY });
-
+console.log('Loaded API key:', process.env.JIGSAWSTACK_API_KEY);
 // Helper: Call JigsawStack Web Search API
 async function searchEvents(query) {
   // Uses the official JigsawStack SDK
@@ -27,30 +27,34 @@ async function searchEvents(query) {
     safe_search: 'moderate',
     auto_scrape: false
   });
-  console.log('JigsawStack Web Search API response:', JSON.stringify(data, null, 2));
+  // console.log('JigsawStack Web Search API response:', JSON.stringify(data, null, 2));
   return (data.results || []).slice(0, 5).map(r => ({ title: r.title, url: r.url }));
 }
 
-// Helper: Call JigsawStack AI Web Scraper API
+// Helper: Call JigsawStack AI Web Scraper API using SDK
 async function extractEventDetails(url) {
-  // Uses the official JigsawStack SDK
-  const data = await jigsaw.web.ai_scrape({
-    url,
-    element_prompts: [
-      'event name',
-      'event date in YYYY-MM-DD format',
-      'event location',
-      'link to the event'
-    ]
-  });
-  console.log(`JigsawStack Scraper API response for ${url}:`, JSON.stringify(data, null, 2));
-  const ctx = data.context || {};
-  return {
-    name: ctx['event name'] ? (Array.isArray(ctx['event name']) ? ctx['event name'][0] : ctx['event name']) : 'Unknown',
-    date: ctx['event date in YYYY-MM-DD format'] ? (Array.isArray(ctx['event date in YYYY-MM-DD format']) ? ctx['event date in YYYY-MM-DD format'][0] : ctx['event date in YYYY-MM-DD format']) : '',
-    location: ctx['event location'] ? (Array.isArray(ctx['event location']) ? ctx['event location'][0] : ctx['event location']) : '',
-    link: ctx['link to the event'] ? (Array.isArray(ctx['link to the event']) ? ctx['link to the event'][0] : ctx['link to the event']) : url
-  };
+  console.log(`Extracting details from: ${url}`);
+  try {
+    const data = await jigsaw.web.ai_scrape({
+      url,
+      element_prompts: [
+        'event name',
+        'event date in YYYY-MM-DD format',
+        'event location',
+        'link to the event'
+      ]
+    });
+    const ctx = data.context || {};
+    return {
+      name: ctx['event name'] ? (Array.isArray(ctx['event name']) ? ctx['event name'][0] : ctx['event name']) : 'Unknown',
+      date: ctx['event date in YYYY-MM-DD format'] ? (Array.isArray(ctx['event date in YYYY-MM-DD format']) ? ctx['event date in YYYY-MM-DD format'][0] : ctx['event date in YYYY-MM-DD format']) : '',
+      location: ctx['event location'] ? (Array.isArray(ctx['event location']) ? ctx['event location'][0] : ctx['event location']) : '',
+      link: ctx['link to the event'] ? (Array.isArray(ctx['link to the event']) ? ctx['link to the event'][0] : ctx['link to the event']) : url
+    };
+  } catch (err) {
+    console.error(`Scraping failed for ${url}:`, err.message);
+    return null;
+  }
 }
 
 // Helper: Send email with event list
@@ -81,7 +85,7 @@ app.post('/find-events', async (req, res) => {
 
     // Combine prompt and city
     // Make the query more specific to the city for better search results
-    const searchQuery = `${prompt} happening in ${city}. Only provide the links for the events`;
+    const searchQuery = `${prompt} happening in ${city}. Only provide the urls for the events`;
 
     // 1. Search for event pages
     const searchResults = await searchEvents(searchQuery);
@@ -91,17 +95,20 @@ app.post('/find-events', async (req, res) => {
 
     // 3. Filter for future events in the specified city
     const today = new Date().toISOString().slice(0, 10);
+    console.log(eventDetails);
     const filtered = eventDetails.filter(e =>
       typeof e.location === 'string' &&
       e.location.toLowerCase().includes(city.toLowerCase()) &&
       e.date >= today
+    );
+    const filtered_less = eventDetails.filter(e => e.date >= today
     );
 
     // 4. Send email
     // await sendEventEmail(email, filtered);
 
     // 5. Return JSON
-    res.json({ events: filtered });
+    res.json({ events: eventDetails });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
