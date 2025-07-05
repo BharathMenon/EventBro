@@ -1,0 +1,17 @@
+{
+  "name": "eventbro",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jigsawstack": "^0.2.10",
+    "node-fetch": "^2.6.12",
+    "nodemailer": "^6.9.12"
+  }
+}

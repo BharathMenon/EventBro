@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eventbro - Find Events</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    form { margin-bottom: 2em; }
+    label { display: block; margin-top: 1em; }
+    input, textarea { width: 100%; padding: 0.5em; margin-top: 0.2em; }
+    button { margin-top: 1em; padding: 0.7em 1.5em; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 1em; }
+    .event { border: 1px solid #ccc; border-radius: 6px; padding: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Eventbro</h1>
+  <form id="eventForm">
+    <label>Prompt:
+      <input type="text" name="prompt" required placeholder="e.g. Tech events this weekend">
+    </label>
+    <label>City:
+      <input type="text" name="city" required placeholder="e.g. San Francisco">
+    </label>
+    <label>Email:
+      <input type="email" name="email" required placeholder="you@email.com">
+    </label>
+    <button type="submit">Find Events</button>
+  </form>
+  <div id="results"></div>
+  <script>
+    document.getElementById('eventForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        prompt: form.prompt.value,
+        city: form.city.value,
+        email: form.email.value
+      };
+      document.getElementById('results').innerHTML = 'Searching...';
+      const res = await fetch('/find-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      if (json.events && json.events.length) {
+        document.getElementById('results').innerHTML = '<h2>Events Found:</h2>' +
+          '<ul>' + json.events.map(e => `<li class="event"><a href="${e.link}" target="_blank">${e.name}</a><br>Date: ${e.date}<br>Location: ${e.location}</li>`).join('') + '</ul>';
+      } else {
+        document.getElementById('results').innerHTML = 'No events found.';
+      }
+    });
+  </script>
+</body>
+</html>
